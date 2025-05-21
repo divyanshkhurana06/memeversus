@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { GameMode, GameStatus } from '../models/game.model';
 
 interface Player {
@@ -41,14 +41,44 @@ interface GameResult {
   txDigest: string;
 }
 
+interface PlayerStats {
+  wallet_address: string;
+  username: string;
+  wins: number;
+  games_played: number;
+  total_score: number;
+  badges: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface GameHistoryEntry {
+  gameId: string;
+  gameMode: GameMode;
+  score: number;
+  timestamp: string;
+  opponent: string;
+}
+
 interface LeaderboardEntry {
   wallet_address: string;
-  username?: string;
+  username: string;
   wins: number;
   games_played: number;
   total_score: number;
   badges: string[];
   rank: number;
+}
+
+interface DatabaseLeaderboardEntry {
+  players: {
+    wallet_address: string;
+    username: string;
+    wins: number;
+    games_played: number;
+    total_score: number;
+    badges: string[];
+  };
 }
 
 export class DatabaseService {
@@ -127,18 +157,28 @@ export class DatabaseService {
 
   // Leaderboard
   async getLeaderboard(limit: number = 10, offset: number = 0): Promise<LeaderboardEntry[]> {
-    const { data, error } = await this.supabase
-      .from('players')
-      .select('wallet_address, username, wins, games_played, total_score, badges')
-      .order('total_score', { ascending: false })
-      .range(offset, offset + limit - 1);
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('wallet_address, username, wins, games_played, total_score, badges')
+        .order('total_score', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    return data.map((entry, index) => ({
-      ...entry,
-      rank: offset + index + 1
-    }));
+      return (data as any[]).map((entry, index) => ({
+        wallet_address: entry.wallet_address,
+        username: entry.username,
+        wins: entry.wins,
+        games_played: entry.games_played,
+        total_score: entry.total_score,
+        badges: entry.badges,
+        rank: offset + index + 1
+      }));
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      throw error;
+    }
   }
 
   async getPlayerRank(walletAddress: string): Promise<number> {
@@ -251,52 +291,29 @@ export class DatabaseService {
 
   // Get leaderboard by game mode
   async getLeaderboardByGameMode(gameMode: GameMode, limit: number = 10, offset: number = 0): Promise<LeaderboardEntry[]> {
-    interface GameResultWithPlayer {
-      player_id: string;
-      game_mode: GameMode;
-      score: number;
-      players: {
-        wallet_address: string;
-        username?: string;
-        wins: number;
-        games_played: number;
-        total_score: number;
-        badges: string[];
-      };
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('wallet_address, username, wins, games_played, total_score, badges')
+        .eq('game_mode', gameMode)
+        .order('total_score', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+
+      return (data as any[]).map((entry, index) => ({
+        wallet_address: entry.wallet_address,
+        username: entry.username,
+        wins: entry.wins,
+        games_played: entry.games_played,
+        total_score: entry.total_score,
+        badges: entry.badges,
+        rank: offset + index + 1
+      }));
+    } catch (error) {
+      console.error('Error fetching game mode leaderboard:', error);
+      throw error;
     }
-
-    const { data, error } = await this.supabase
-      .from('game_results')
-      .select(`
-        player_id,
-        game_mode,
-        score,
-        players (
-          wallet_address,
-          username,
-          wins,
-          games_played,
-          total_score,
-          badges
-        )
-      `)
-      .eq('game_mode', gameMode)
-      .order('score', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (error) throw error;
-
-    const typedData = data as unknown as GameResultWithPlayer[];
-    
-    return typedData.map((entry, index) => ({
-      wallet_address: entry.players.wallet_address,
-      username: entry.players.username,
-      wins: entry.players.wins,
-      games_played: entry.players.games_played,
-      total_score: entry.players.total_score,
-      badges: entry.players.badges,
-      rank: offset + index + 1
-    }));
   }
 
   async getTotalPlayers(): Promise<number> {
@@ -313,6 +330,55 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting total players:', error);
       throw error;
+    }
+  }
+
+  async getPlayerStats(walletAddress: string): Promise<PlayerStats | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('*')
+        .eq('wallet_address', walletAddress)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching player stats:', error);
+      return null;
+    }
+  }
+
+  async getPlayerGameHistory(walletAddress: string, limit: number = 10, offset: number = 0): Promise<GameHistoryEntry[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('game_results')
+        .select(`
+          id,
+          game_mode,
+          score,
+          created_at,
+          players (
+            wallet_address,
+            username
+          )
+        `)
+        .eq('player_id', walletAddress)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+
+      return (data as any[]).map((p) => ({
+        gameId: p.id,
+        gameMode: p.game_mode,
+        score: p.score,
+        timestamp: p.created_at,
+        opponent: p.players?.username || 'Unknown'
+      }));
+    } catch (error) {
+      console.error('Error fetching player game history:', error);
+      return [];
     }
   }
 } 

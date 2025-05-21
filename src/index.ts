@@ -32,7 +32,7 @@ const suiService = new SuiService();
 const gameService = new GameService(dbService, suiService);
 const recoveryService = new RecoveryService(gameService, dbService, suiService);
 const loggingService = new LoggingService();
-const metricsService = new MetricsService();
+const metricsService = new MetricsService(dbService);
 
 // Rate limiting configuration
 const apiLimiter = rateLimit({
@@ -155,7 +155,7 @@ io.on('connection', (socket) => {
 
       // Register player
       const player = await gameService.registerPlayer(data.walletAddress, data.username);
-      metricsService.updateTotalPlayers(await dbService.getTotalPlayers());
+      await metricsService.updateTotalPlayers();
       loggingService.info('Player registered successfully', { player });
       socket.emit('playerRegistered', player);
     } catch (error) {
