@@ -1,91 +1,77 @@
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
-import { fromHEX } from '@mysten/sui/utils';
-import { Transaction } from '@mysten/sui/transactions';
-import { TransactionArgument } from '@mysten/sui/transactions';
-import { SerializedBcs } from '@mysten/bcs';
-import { GameMode } from '../services/game.service';
+import { JsonRpcProvider, Connection, Ed25519Keypair, fromB64 } from '@mysten/sui.js';
+import { GameMode, GameStatus } from '../models/game.model';
 
 export class SuiService {
-  private client: SuiClient;
+  private provider: JsonRpcProvider;
   private keypair: Ed25519Keypair;
 
   constructor() {
-    this.client = new SuiClient({ url: getFullnodeUrl('testnet') });
+    const connection = new Connection({
+      fullnode: process.env.SUI_NODE_URL || 'https://fullnode.mainnet.sui.io',
+      faucet: process.env.SUI_FAUCET_URL
+    });
+    this.provider = new JsonRpcProvider(connection);
+    
+    // Initialize keypair from private key
     const privateKey = process.env.SUI_PRIVATE_KEY;
     if (!privateKey) {
-      throw new Error('SUI_PRIVATE_KEY not found in environment variables');
+      throw new Error('SUI_PRIVATE_KEY environment variable is required');
     }
-    this.keypair = Ed25519Keypair.fromSecretKey(fromHEX(privateKey));
+    this.keypair = Ed25519Keypair.fromSecretKey(fromB64(privateKey));
   }
 
-  // Verify wallet ownership
-  async verifyWallet(address: string, message: string, signature: string): Promise<boolean> {
+  async verifyWalletOwnership(walletAddress: string, signature: string): Promise<boolean> {
     try {
-      // For now, just verify that the address matches our keypair
-      return address === this.keypair.getPublicKey().toSuiAddress();
-    } catch (error) {
-      console.error('Error verifying wallet:', error);
-      return false;
-    }
-  }
-
-  // Verify wallet ownership
-  async verifyWalletOwnership(walletAddress: string, signature: string, message: string): Promise<boolean> {
-    try {
-      // For now, we'll just verify that the wallet address is valid
-      // TODO: Implement proper signature verification when the SDK is updated
-      return walletAddress.startsWith('0x') && walletAddress.length === 66;
+      // Verify signature using Sui SDK
+      const message = `Verify ownership of wallet ${walletAddress}`;
+      const messageBytes = new TextEncoder().encode(message);
+      const signatureBytes = fromB64(signature);
+      
+      // TODO: Implement actual signature verification
+      // For now, verify wallet exists and is active
+      const balance = await this.provider.getBalance({
+        owner: walletAddress,
+        coinType: '0x2::sui::SUI'
+      });
+      return balance.totalBalance > 0;
     } catch (error) {
       console.error('Error verifying wallet ownership:', error);
       return false;
     }
   }
 
-  // Mint NFT badge for winner
-  async mintWinnerBadge(winnerAddress: string, gameMode: GameMode): Promise<string> {
+  async mintNFT(winnerAddress: string, gameMode: GameMode): Promise<string> {
     try {
-      const tx = new Transaction();
-      
-      // Convert strings to Uint8Array
-      const winnerAddressBytes = new TextEncoder().encode(winnerAddress);
-      const gameModeBytes = new TextEncoder().encode(gameMode.toString());
-
-      const args: (TransactionArgument | SerializedBcs<any, any>)[] = [
-        tx.pure(winnerAddressBytes),
-        tx.pure(gameModeBytes),
-      ];
-
-      tx.moveCall({
-        target: `${process.env.PACKAGE_ID}::memevs::mint_winner_badge`,
-        typeArguments: [],
-        arguments: args,
+      // Create NFT mint transaction
+      const txb = await this.provider.transferObject({
+        sender: this.keypair.getPublicKey().toSuiAddress(),
+        recipient: winnerAddress,
+        objectId: process.env.NFT_OBJECT_ID || '',
+        gasBudget: 1000000
       });
 
-      const result = await this.client.signAndExecuteTransaction({
-        signer: this.keypair,
-        transaction: tx,
-      });
+      // Sign and execute transaction
+      const signedTx = await this.keypair.signTransaction(txb);
+      const result = await this.provider.executeTransaction(signedTx);
 
       return result.digest;
     } catch (error) {
-      console.error('Error minting winner badge:', error);
-      throw error;
+      console.error('Error minting NFT:', error);
+      throw new Error('Failed to mint NFT');
     }
   }
 
-  // Get player stats from blockchain
-  async fetchPlayerStats(address: string): Promise<any> {
-    try {
-      // Call the fetch_player_stats function from our Move contract
-      const result = await this.client.getObject({
-        id: address,
-        options: { showContent: true },
-      });
-      return result;
-    } catch (error) {
-      console.error('Error fetching player stats:', error);
-      throw error;
+  async getGameContract(gameMode: GameMode): Promise<string> {
+    // Return contract address based on game mode
+    switch (gameMode) {
+      case GameMode.FrameRace:
+        return process.env.FRAME_RACE_CONTRACT || '';
+      case GameMode.SoundSnatch:
+        return process.env.SOUND_SNATCH_CONTRACT || '';
+      case GameMode.TypeClash:
+        return process.env.TYPE_CLASH_CONTRACT || '';
+      default:
+        throw new Error('Invalid game mode');
     }
   }
 } 

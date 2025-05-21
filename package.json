@@ -1,14 +1,14 @@
 {
-  "name": "memevs-backend",
+  "name": "game-service",
   "version": "1.0.0",
-  "description": "Backend for MemeVersus game",
+  "description": "Game service with blockchain integration",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn src/index.ts",
     "build": "tsc",
-    "watch": "tsc -w",
-    "setup": "ts-node scripts/setup-sui.ts"
+    "test": "jest",
+    "lint": "eslint . --ext .ts"
   },
   "keywords": [
     "game",
@@ -19,19 +19,26 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@mysten/sui": "^1.30.0",
-    "@supabase/supabase-js": "^2.49.7",
+    "@mysten/sui.js": "^0.50.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "socket.io": "^4.6.1"
+    "express-rate-limit": "^6.7.0",
+    "express-validator": "^7.0.1",
+    "socket.io": "^4.6.1",
+    "winston": "^3.8.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
     "@types/express": "^4.17.17",
+    "@types/jest": "^29.5.0",
     "@types/node": "^18.15.11",
-    "@types/socket.io": "^3.0.2",
-    "ts-node": "^10.9.1",
+    "@typescript-eslint/eslint-plugin": "^5.57.1",
+    "@typescript-eslint/parser": "^5.57.1",
+    "eslint": "^8.37.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.0.3"
   }
 }
