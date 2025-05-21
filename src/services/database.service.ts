@@ -41,15 +41,16 @@ interface GameResult {
   txDigest: string;
 }
 
-interface PlayerStats {
-  wallet_address: string;
-  username: string;
+export interface PlayerStats {
+  walletAddress: string;
+  username?: string;
+  totalGames: number;
   wins: number;
-  games_played: number;
-  total_score: number;
-  badges: string[];
-  created_at: string;
-  updated_at: string;
+  losses: number;
+  draws: number;
+  rating: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface GameHistoryEntry {
