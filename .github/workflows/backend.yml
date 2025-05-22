@@ -54,4 +54,7 @@ jobs:
           REDIS_URL: redis://localhost:6379
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }} 
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SUI_URL: https://fullnode.mainnet.sui.io
+          NFT_PACKAGE_ID: ${{ secrets.NFT_PACKAGE_ID }}
+          NFT_COLLECTION_ID: ${{ secrets.NFT_COLLECTION_ID }} 

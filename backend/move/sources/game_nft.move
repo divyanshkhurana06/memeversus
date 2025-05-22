@@ -5,6 +5,7 @@ module 0x0::game_nft {
     use sui::tx_context::{Self, TxContext};
     use sui::event;
     use sui::table::{Self, Table};
+    use sui::vec_map;
     use sui::vec_map::VecMap;
     use sui::clock::{Self, Clock};
 
@@ -117,12 +118,8 @@ module 0x0::game_nft {
             attributes: vec_map::empty(),
         };
 
-        // Add NFT to collection
-        let nft_id = object::id(&nft);
-        table::add(&mut collection.nfts, nft_id, nft);
-        collection.total_minted = collection.total_minted + 1;
-
         // Emit mint event
+        let nft_id = object::id(&nft);
         event::emit(NFTMinted {
             nft_id,
             owner: tx_context::sender(ctx),
@@ -132,27 +129,28 @@ module 0x0::game_nft {
             minted_at: clock::timestamp_ms(clock),
         });
 
+        collection.total_minted = collection.total_minted + 1;
         // Transfer NFT to sender
-        transfer::transfer(nft_id, tx_context::sender(ctx));
+        transfer::public_transfer(nft, tx_context::sender(ctx));
     }
 
     public entry fun transfer_nft(
-        nft: &mut GameNFT,
+        collection: &mut GameNFTCollection,
+        nft_id: ID,
         recipient: address,
         ctx: &mut TxContext
     ) {
         let sender = tx_context::sender(ctx);
-        let nft_id = object::id(nft);
-        
+        // Remove NFT from table
+        let nft = table::remove(&mut collection.nfts, nft_id);
         // Emit transfer event
         event::emit(NFTTransferred {
             nft_id,
             from: sender,
             to: recipient,
         });
-
         // Transfer NFT
-        transfer::transfer(nft, recipient);
+        transfer::public_transfer(nft, recipient);
     }
 
     public entry fun update_rarity(
