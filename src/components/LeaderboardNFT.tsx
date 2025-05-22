@@ -117,7 +117,7 @@ const LeaderboardNFT: React.FC = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.1 + index * 0.1, duration: 0.4 }}
-                    className="p-4 flex items-center hover:bg-dark-lighter"
+                    className={`flex items-center justify-between p-2 rounded-md ${player.name === 'You' ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
                   >
                     <div className="w-8 h-8 flex items-center justify-center mr-3">
                       {player.rank <= 3 ? (

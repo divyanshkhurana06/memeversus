@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, X, Gamepad2, User, Wallet } from 'lucide-react';
+import { Menu, X, Gamepad2, Trophy, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 const Navbar: React.FC = () => {

@@ -1,60 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Users, MessageSquare, Trophy, Clock } from 'lucide-react';
-import { websocketService } from '../utils/websocket';
-import { GameState, Player, ChatMessage } from '../types/game';
+
+interface Message {
+  id: number;
+  user: string;
+  text: string;
+  avatar: string;
+}
+
+interface Player {
+  id: number;
+  name: string;
+  avatar: string;
+  score: number;
+}
 
 const GameRoomUI: React.FC = () => {
-  const [gameState, setGameState] = useState<GameState | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [countdown, setCountdown] = useState(10);
-  const [messageInput, setMessageInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<Message[]>([
+    { id: 1, user: 'MemeKing', text: 'Good luck everyone!', avatar: 'https://i.pravatar.cc/100?img=1' },
+    { id: 2, user: 'DankLord', text: 'This is gonna be fun', avatar: 'https://i.pravatar.cc/100?img=2' },
+    { id: 3, user: 'GigaChad', text: 'I\'m going to win this time', avatar: 'https://i.pravatar.cc/100?img=3' },
+    { id: 4, user: 'MemeLord', text: 'I\'ve been practicing all week!', avatar: 'https://i.pravatar.cc/100?img=4' },
+  ]);
+  const [players, setPlayers] = useState<Player[]>([
+    { id: 1, name: 'MemeKing', avatar: 'https://i.pravatar.cc/100?img=1', score: 3200 },
+    { id: 2, name: 'DankLord', avatar: 'https://i.pravatar.cc/100?img=2', score: 2800 },
+    { id: 3, name: 'GigaChad', avatar: 'https://i.pravatar.cc/100?img=3', score: 2600 },
+    { id: 4, name: 'MemeLord', avatar: 'https://i.pravatar.cc/100?img=4', score: 2200 },
+    { id: 5, name: 'You', avatar: 'https://i.pravatar.cc/100?img=5', score: 1800 },
+  ]);
 
-  // Connect to WebSocket
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
-
-    websocketService.connect(token);
-
-    // Set up event listeners
-    websocketService.onGameStateUpdate((state: GameState) => {
-      setGameState(state);
-      setPlayers(state.players);
-    });
-
-    websocketService.onChatMessage((message: ChatMessage) => {
-      setChatMessages(prev => [...prev, message]);
-    });
-
-    websocketService.onPlayerJoined((player: Player) => {
-      setPlayers(prev => [...prev, player]);
-    });
-
-    websocketService.onPlayerLeft((playerId: string) => {
-      setPlayers(prev => prev.filter(p => p.id !== playerId));
-    });
-
-    websocketService.onGameStart((data: { countdown?: number }) => {
-      setCountdown(data.countdown || 10);
-    });
-
-    websocketService.onGameEnd((data: { winner?: string }) => {
-      // Handle game end
-      console.log('Game ended:', data);
-    });
-
-    return () => {
-      websocketService.removeAllListeners();
-      websocketService.disconnect();
-    };
-  }, []);
-
-  // Handle countdown
+  // Animate countdown
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -62,22 +40,19 @@ const GameRoomUI: React.FC = () => {
     }
   }, [countdown]);
 
-  // Send chat message
-  const sendMessage = useCallback(() => {
-    if (!messageInput.trim()) return;
-
-    websocketService.sendGameAction(gameState?.roomId || '', 'chat', {
-      text: messageInput.trim()
-    });
-
-    setMessageInput('');
-  }, [messageInput, gameState?.roomId]);
-
-  // Handle game action
-  const handleGameAction = useCallback((action: string, payload: unknown) => {
-    if (!gameState?.roomId) return;
-    websocketService.sendGameAction(gameState.roomId, action, payload);
-  }, [gameState?.roomId]);
+  // Animate score changes periodically
+  useEffect(() => {
+    const scoreInterval = setInterval(() => {
+      setPlayers(prevPlayers => 
+        prevPlayers.map(player => ({
+          ...player,
+          score: player.score + Math.floor(Math.random() * 50)
+        })).sort((a, b) => b.score - a.score)
+      );
+    }, 3000);
+    
+    return () => clearInterval(scoreInterval);
+  }, []);
 
   return (
     <section className="py-20 relative overflow-hidden">
@@ -96,7 +71,7 @@ const GameRoomUI: React.FC = () => {
         >
           <p className="text-primary-400 font-medium mb-2">Live Experience</p>
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-white">
-            {gameState?.mode || 'Game Room'}
+            Game Room Preview
           </h2>
         </motion.div>
         
@@ -128,7 +103,6 @@ const GameRoomUI: React.FC = () => {
                     <div>
                       <div className="flex items-center">
                         <span className="text-sm font-medium text-primary-400">{message.user}</span>
-                        <span className="text-xs text-gray-500 ml-2">{new Date(message.timestamp).toLocaleTimeString()}</span>
                       </div>
                       <p className="text-sm text-gray-300">{message.text}</p>
                     </div>
@@ -140,16 +114,10 @@ const GameRoomUI: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <input 
                     type="text" 
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                     placeholder="Type a message..." 
                     className="flex-1 bg-dark text-white text-sm rounded-md px-3 py-2 outline-none focus:ring-1 focus:ring-primary-500"
                   />
-                  <button 
-                    onClick={sendMessage}
-                    className="bg-primary-500 text-white p-2 rounded-md hover:bg-primary-600 transition-colors"
-                  >
+                  <button className="bg-primary-500 text-white p-2 rounded-md hover:bg-primary-600 transition-colors">
                     <Send size={16} />
                   </button>
                 </div>
@@ -173,49 +141,31 @@ const GameRoomUI: React.FC = () => {
                   
                   <div className="mb-8 flex flex-col items-center justify-center">
                     <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                      {gameState?.status === 'waiting' ? 'Waiting for players...' : 
-                       gameState?.status === 'playing' ? 'Game in Progress!' :
-                       'Game Over!'}
+                      Get Ready for <span className="text-primary-400">FrameRace</span>!
                     </h3>
                     <p className="text-gray-400 max-w-2xl">
-                      {gameState?.status === 'waiting' ? 'Waiting for more players to join...' :
-                       gameState?.status === 'playing' ? 'Be the first to pause at the perfect moment!' :
-                       `Winner: ${gameState?.winner || 'No winner'}`}
+                      You'll be shown a meme video. Be the first to pause at the most iconic frame!
                     </p>
                   </div>
                   
                   <div className="bg-gradient-to-br from-primary-500/10 to-accent-500/10 rounded-xl border border-dark-border aspect-video flex items-center justify-center mb-8">
-                    {gameState?.status === 'waiting' ? (
-                      <motion.div
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                        className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-heading font-bold"
-                      >
-                        {countdown}
-                      </motion.div>
-                    ) : gameState?.status === 'playing' ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        {/* Game-specific UI will go here */}
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <h4 className="text-2xl font-bold mb-4">Game Over!</h4>
-                        <p className="text-gray-400">Thanks for playing!</p>
-                      </div>
-                    )}
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.5 }}
+                      className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-heading font-bold"
+                    >
+                      {countdown}
+                    </motion.div>
                   </div>
                   
                   <div className="text-center">
-                    {gameState?.status === 'waiting' && (
-                      <motion.button
-                        whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(139, 92, 246, 0.5)' }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleGameAction('ready', {})}
-                        className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-md font-medium inline-flex items-center"
-                      >
-                        <span>Get Ready!</span>
-                      </motion.button>
-                    )}
+                    <motion.button
+                      whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(139, 92, 246, 0.5)' }}
+                      whileTap={{ scale: 0.95 }}
+                      className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-md font-medium inline-flex items-center"
+                    >
+                      <span>Get Ready!</span>
+                    </motion.button>
                   </div>
                 </div>
               </div>
@@ -224,7 +174,7 @@ const GameRoomUI: React.FC = () => {
             {/* Leaderboard sidebar */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.6, duration: 0.5 }}
               className="w-full lg:w-72 bg-dark-lighter border-l border-dark-border"
@@ -242,13 +192,13 @@ const GameRoomUI: React.FC = () => {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 + index * 0.1, duration: 0.4 }}
-                    className={`flex items-center justify-between p-2 rounded-md ${player.isReady ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
+                    className={`flex items-center justify-between p-2 rounded-md ${player.name === 'You' ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
                   >
                     <div className="flex items-center">
                       <span className="w-5 text-center text-gray-500 mr-2">{index + 1}</span>
-                      <img src={player.avatar} alt={player.username} className="w-8 h-8 rounded-full mr-2" />
-                      <span className={`font-medium ${player.isReady ? 'text-primary-400' : 'text-white'}`}>
-                        {player.username}
+                      <img src={player.avatar} alt={player.name} className="w-8 h-8 rounded-full mr-2" />
+                      <span className={`font-medium ${player.name === 'You' ? 'text-primary-400' : 'text-white'}`}>
+                        {player.name}
                       </span>
                     </div>
                     <motion.span 

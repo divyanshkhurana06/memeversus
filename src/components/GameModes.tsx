@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useRef } from 'react';
+import { motion, useInView } from 'framer-motion';
 import { Zap, Headphones, Keyboard, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -44,7 +44,7 @@ const GameModeCard: React.FC<GameModeCardProps> = ({ icon, title, description, p
 };
 
 const GameModes: React.FC = () => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: 'left' | 'right') => {
     if (containerRef.current) {
@@ -128,7 +128,7 @@ const GameModes: React.FC = () => {
             </motion.button>
             <motion.button
               initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.3, duration: 0.5 }}
               onClick={() => scroll('right')}
