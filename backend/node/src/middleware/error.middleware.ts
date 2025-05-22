@@ -4,7 +4,12 @@ import { LoggingService } from '../services/logging.service';
 
 const logger = new LoggingService();
 
-export const errorHandler = (err: AppError, req: Request, res: Response, next: NextFunction) => {
+export const errorHandler = (
+  err: AppError,
+  req: Request,
+  res: Response,
+  _next: (err?: Error) => void
+) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
 
@@ -26,7 +31,9 @@ export const notFoundHandler = (
   next(err);
 };
 
-export const asyncHandler = (fn: Function) => {
+type AsyncRequestHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+
+export const asyncHandler = (fn: AsyncRequestHandler) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
