@@ -1,4 +1,5 @@
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
+import type { Socket as SocketType } from 'socket.io';
 import { WebSocketService } from '../websocket.service';
 import { GameService } from '../game.service';
 import { LoggingService } from '../logging.service';
@@ -7,6 +8,7 @@ import { GameMode } from '../../models/game.model';
 import { createServer } from 'http';
 import { DatabaseService } from '../database.service';
 import { SuiService } from '../sui.service';
+import { supabase } from '../../config/supabase';
 
 jest.mock('socket.io');
 jest.mock('../game.service');
@@ -16,32 +18,27 @@ jest.mock('../database.service');
 jest.mock('../sui.service');
 
 describe('WebSocketService', () => {
-  let webSocketService: WebSocketService;
-  let mockIo: jest.Mocked<Server>;
-  let mockGameService: jest.Mocked<GameService>;
-  let mockLoggingService: jest.Mocked<LoggingService>;
-  let mockMetricsService: jest.Mocked<MetricsService>;
-  let mockSocket: jest.Mocked<Socket>;
+  let websocketService: WebSocketService;
   let mockDatabaseService: jest.Mocked<DatabaseService>;
   let mockSuiService: jest.Mocked<SuiService>;
+  let mockLogger: LoggingService;
+  let mockMetricsService: jest.Mocked<MetricsService>;
+  let mockGameService: jest.Mocked<GameService>;
+  let mockIo: jest.Mocked<Server>;
+  let mockSocket: jest.Mocked<SocketType>;
 
   beforeEach(() => {
     const httpServer = createServer();
-    mockIo = {
-      to: jest.fn().mockReturnThis(),
-      emit: jest.fn(),
-      on: jest.fn(),
-      in: jest.fn().mockReturnThis(),
-      sockets: {
-        get: jest.fn(),
-        set: jest.fn()
-      }
-    } as unknown as jest.Mocked<Server>;
-    mockDatabaseService = new DatabaseService() as jest.Mocked<DatabaseService>;
-    mockSuiService = new SuiService() as jest.Mocked<SuiService>;
+    mockLogger = new LoggingService();
+    mockDatabaseService = new DatabaseService(supabase, mockLogger) as jest.Mocked<DatabaseService>;
+    mockSuiService = new SuiService(mockLogger) as jest.Mocked<SuiService>;
     mockGameService = new GameService(mockDatabaseService, mockSuiService) as jest.Mocked<GameService>;
-    mockLoggingService = new LoggingService() as jest.Mocked<LoggingService>;
-    mockMetricsService = new MetricsService() as jest.Mocked<MetricsService>;
+    mockMetricsService = new MetricsService(mockDatabaseService) as jest.Mocked<MetricsService>;
+    mockIo = {
+      on: jest.fn(),
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn()
+    } as unknown as jest.Mocked<Server>;
     mockSocket = {
       id: 'test-socket-id',
       join: jest.fn(),
@@ -49,14 +46,9 @@ describe('WebSocketService', () => {
       emit: jest.fn(),
       on: jest.fn(),
       rooms: new Set(['test-room']),
-    } as unknown as jest.Mocked<Socket>;
+    } as unknown as jest.Mocked<SocketType>;
 
-    webSocketService = new WebSocketService(
-      mockIo,
-      mockGameService,
-      mockLoggingService,
-      mockMetricsService
-    );
+    websocketService = new WebSocketService(mockIo, mockGameService, mockLogger, mockMetricsService);
   });
 
   describe('player registration', () => {
@@ -187,8 +179,8 @@ describe('WebSocketService', () => {
   describe('disconnection handling', () => {
     it('should handle player disconnection', async () => {
       const walletAddress = '0x123';
-      webSocketService['playerSockets'].set(walletAddress, mockSocket.id);
-      webSocketService['socketPlayers'].set(mockSocket.id, walletAddress);
+      websocketService['playerSockets'].set(walletAddress, mockSocket.id);
+      websocketService['socketPlayers'].set(mockSocket.id, walletAddress);
 
       // Simulate socket connection
       const connectionHandler = mockIo.on.mock.calls.find(call => call[0] === 'connection')?.[1];
@@ -203,8 +195,8 @@ describe('WebSocketService', () => {
       }
 
       expect(mockMetricsService.decrementActiveGames).toHaveBeenCalled();
-      expect(webSocketService['playerSockets'].has(walletAddress)).toBe(false);
-      expect(webSocketService['socketPlayers'].has(mockSocket.id)).toBe(false);
+      expect(websocketService['playerSockets'].has(walletAddress)).toBe(false);
+      expect(websocketService['socketPlayers'].has(mockSocket.id)).toBe(false);
     });
   });
 
@@ -213,7 +205,7 @@ describe('WebSocketService', () => {
       const roomId = 'test-room';
       const gameState = { status: 'in_progress' };
 
-      webSocketService.broadcastGameState(roomId, gameState);
+      websocketService.broadcastGameState(roomId, gameState);
 
       expect(mockIo.to).toHaveBeenCalledWith(roomId);
     });
@@ -222,27 +214,27 @@ describe('WebSocketService', () => {
       const walletAddress = '0x123';
       const event = 'gameOver';
       const data = { result: 'win' };
-      webSocketService['playerSockets'].set(walletAddress, mockSocket.id);
+      websocketService['playerSockets'].set(walletAddress, mockSocket.id);
 
-      webSocketService.notifyPlayer(walletAddress, event, data);
+      websocketService.notifyPlayer(walletAddress, event, data);
 
       expect(mockIo.to).toHaveBeenCalledWith(mockSocket.id);
     });
 
     it('should get connected players', () => {
       const walletAddress = '0x123';
-      webSocketService['playerSockets'].set(walletAddress, mockSocket.id);
+      websocketService['playerSockets'].set(walletAddress, mockSocket.id);
 
-      const players = webSocketService.getConnectedPlayers();
+      const players = websocketService.getConnectedPlayers();
 
       expect(players).toContain(walletAddress);
     });
 
     it('should check if player is connected', () => {
       const walletAddress = '0x123';
-      webSocketService['playerSockets'].set(walletAddress, mockSocket.id);
+      websocketService['playerSockets'].set(walletAddress, mockSocket.id);
 
-      const isConnected = webSocketService.isPlayerConnected(walletAddress);
+      const isConnected = websocketService.isPlayerConnected(walletAddress);
 
       expect(isConnected).toBe(true);
     });

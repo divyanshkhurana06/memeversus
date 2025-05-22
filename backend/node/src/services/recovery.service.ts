@@ -200,8 +200,12 @@ export class RecoveryService {
       console.log(`[Recovery] Retrying score update for player ${playerId} in room ${roomId}`);
       
       const score = gameState.scores.get(playerId) || 0;
-      await this.dbService.updatePlayerStats(playerId, {
-        rating: score
+      const player = await this.dbService.getPlayer(playerId);
+      if (!player) throw new Error('Player not found');
+      await this.dbService.updatePlayer(playerId, {
+        games_played: player.games_played + 1,
+        total_score: player.total_score + score,
+        wins: player.wins + (score >= 3 ? 1 : 0)
       });
       
       console.log(`[Recovery] Successfully updated score for player ${playerId}`);

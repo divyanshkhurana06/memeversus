@@ -4,6 +4,7 @@ import { LoggingService } from '../logging.service';
 import { PlayerStats } from '../database.service';
 import jwt from 'jsonwebtoken';
 import { config } from 'dotenv';
+import { supabase } from '../../config/supabase';
 
 config({ path: '.env.test' });
 
@@ -13,12 +14,12 @@ jest.mock('../logging.service');
 describe('AuthService', () => {
   let authService: AuthService;
   let mockDatabaseService: jest.Mocked<DatabaseService>;
-  let mockLoggingService: jest.Mocked<LoggingService>;
+  let mockLogger: LoggingService;
 
   beforeEach(() => {
-    mockDatabaseService = new DatabaseService() as jest.Mocked<DatabaseService>;
-    mockLoggingService = new LoggingService() as jest.Mocked<LoggingService>;
-    authService = new AuthService(mockDatabaseService, mockLoggingService);
+    mockLogger = new LoggingService();
+    mockDatabaseService = new DatabaseService(supabase, mockLogger) as jest.Mocked<DatabaseService>;
+    authService = new AuthService(mockDatabaseService, mockLogger);
     
     // Mock JWT sign
     jest.spyOn(jwt, 'sign').mockImplementation((payload) => {

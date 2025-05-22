@@ -1,6 +1,7 @@
 import { DatabaseService } from './database.service';
 import { LoggingService } from './logging.service';
 import { GameMode } from '../models/game.model';
+import type { Player } from '../services/database.service';
 
 export class RatingService {
   private readonly K_FACTOR = 32; // Maximum rating change per game
@@ -120,7 +121,11 @@ export class RatingService {
     limit: number = 10
   ): Promise<Array<{ walletAddress: string; rating: number }>> {
     try {
-      return this.dbService.getTopPlayers(gameMode, limit);
+      const players = await this.dbService.getTopPlayers(gameMode, limit);
+      return players.map(player => ({
+        walletAddress: player.wallet_address,
+        rating: player.rating
+      }));
     } catch (error) {
       this.logger.error('Error getting top players', error as Error, {
         gameMode,

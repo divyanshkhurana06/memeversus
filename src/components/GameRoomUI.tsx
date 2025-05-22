@@ -173,19 +173,19 @@ const GameRoomUI: React.FC = () => {
                   
                   <div className="mb-8 flex flex-col items-center justify-center">
                     <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                      {gameState?.status === 'WAITING' ? 'Waiting for players...' : 
-                       gameState?.status === 'IN_PROGRESS' ? 'Game in Progress!' :
+                      {gameState?.status === 'waiting' ? 'Waiting for players...' : 
+                       gameState?.status === 'playing' ? 'Game in Progress!' :
                        'Game Over!'}
                     </h3>
                     <p className="text-gray-400 max-w-2xl">
-                      {gameState?.status === 'WAITING' ? 'Waiting for more players to join...' :
-                       gameState?.status === 'IN_PROGRESS' ? 'Be the first to pause at the perfect moment!' :
+                      {gameState?.status === 'waiting' ? 'Waiting for more players to join...' :
+                       gameState?.status === 'playing' ? 'Be the first to pause at the perfect moment!' :
                        `Winner: ${gameState?.winner || 'No winner'}`}
                     </p>
                   </div>
                   
                   <div className="bg-gradient-to-br from-primary-500/10 to-accent-500/10 rounded-xl border border-dark-border aspect-video flex items-center justify-center mb-8">
-                    {gameState?.status === 'WAITING' ? (
+                    {gameState?.status === 'waiting' ? (
                       <motion.div
                         animate={{ scale: [1, 1.1, 1] }}
                         transition={{ repeat: Infinity, duration: 1.5 }}
@@ -193,7 +193,7 @@ const GameRoomUI: React.FC = () => {
                       >
                         {countdown}
                       </motion.div>
-                    ) : gameState?.status === 'IN_PROGRESS' ? (
+                    ) : gameState?.status === 'playing' ? (
                       <div className="w-full h-full flex items-center justify-center">
                         {/* Game-specific UI will go here */}
                       </div>
@@ -206,7 +206,7 @@ const GameRoomUI: React.FC = () => {
                   </div>
                   
                   <div className="text-center">
-                    {gameState?.status === 'WAITING' && (
+                    {gameState?.status === 'waiting' && (
                       <motion.button
                         whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(139, 92, 246, 0.5)' }}
                         whileTap={{ scale: 0.95 }}

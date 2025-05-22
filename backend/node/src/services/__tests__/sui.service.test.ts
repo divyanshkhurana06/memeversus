@@ -1,8 +1,10 @@
 import { SuiService } from '../sui.service';
+import { LoggingService } from '../logging.service';
 import { GameMode } from '../../models/game.model';
 
 describe('SuiService', () => {
   let suiService: SuiService;
+  let mockLogger: LoggingService;
   const mockPlayerAddress = '0x123';
 
   beforeEach(() => {
@@ -10,7 +12,8 @@ describe('SuiService', () => {
     process.env.FRAME_RACE_CONTRACT = '0x123';
     process.env.SOUND_SNATCH_CONTRACT = '0x456';
     process.env.TYPE_CLASH_CONTRACT = '0x789';
-    suiService = new SuiService();
+    mockLogger = new LoggingService();
+    suiService = new SuiService(mockLogger);
   });
 
   describe('getContractAddress', () => {
@@ -30,7 +33,7 @@ describe('SuiService', () => {
     });
 
     it('should throw error for unknown game mode', () => {
-      expect(() => suiService.getContractAddress(GameMode.CLASSIC)).toThrow('Unknown game mode');
+      expect(() => suiService.getContractAddress('UNKNOWN' as GameMode)).toThrow('Unknown game mode');
     });
   });
 

@@ -1,24 +1,18 @@
 import { SuiService } from './sui.service';
 import { DatabaseService } from './database.service';
-import { GameStatus, GameState, GameAction, GameResult, GameMode } from '../models/game.model';
-import { GameModeFactory, IGameMode } from '../game-modes/game-mode.factory';
-import { LoggingService } from './logging.service';
+import { GameMode, GameStatus, GameState, GameAction, GameResult } from '../models/game.model';
 
 export class GameService {
   private suiService: SuiService;
   private dbService: DatabaseService;
   private gameStates: Map<string, GameState>;
   private gameTimeouts: Map<string, NodeJS.Timeout>;
-  private gameModeFactory: GameModeFactory;
-  private logger: LoggingService;
 
   constructor(dbService: DatabaseService, suiService: SuiService) {
     this.dbService = dbService;
     this.suiService = suiService;
     this.gameStates = new Map();
     this.gameTimeouts = new Map();
-    this.gameModeFactory = GameModeFactory.getInstance();
-    this.logger = new LoggingService();
   }
 
   // Create a new game room
@@ -55,16 +49,17 @@ export class GameService {
       throw new Error('Not enough players to start game');
     }
 
-    const gameMode = this.gameModeFactory.getGameMode(gameState.mode);
-    const updatedState = await gameMode.initializeGame(gameState);
-    
-    this.gameStates.set(roomId, updatedState);
-    await this.updateGameRoom(roomId, updatedState);
-    
+    gameState.status = GameStatus.STARTING;
+    gameState.startTime = Date.now();
+    gameState.lastActionTime = Date.now();
+    gameState.isActive = true;
+    gameState.roundNumber = 1;
+
     // Start round timeout
     this.startRoundTimeout(roomId);
-    
-    return updatedState;
+
+    await this.updateGameRoom(roomId, gameState);
+    return gameState;
   }
 
   // Cancel game
@@ -86,11 +81,13 @@ export class GameService {
     const gameState = await this.getGameState(roomId);
     if (!gameState || gameState.status !== GameStatus.IN_PROGRESS) return;
 
+    // Move to next round or end game
     if (gameState.roundNumber >= gameState.maxRounds) {
       await this.endGame(roomId);
     } else {
       gameState.roundNumber++;
-      await this.updateGameRoom(roomId, gameState);
+      gameState.lastActionTime = Date.now();
+      await this.updateGameState(roomId);
       this.startRoundTimeout(roomId);
     }
   }
@@ -134,19 +131,14 @@ export class GameService {
     if (winner) {
       gameState.winner = winner;
       try {
-        // For now, just log the winner
-        console.log(`Game ended. Winner: ${winner}`);
-        
-        // TODO: Implement NFT minting when the feature is ready
-        // const txDigest = await this.suiService.mintNFT(winner, gameState.mode);
-        
+        const txDigest = await this.suiService.mintNFT(winner, gameState.mode);
         await this.dbService.recordGameResult(roomId, winner, {
           gameMode: gameState.mode,
           score: maxScore,
-          txDigest: '' // Placeholder for txDigest
+          txDigest
         });
       } catch (error) {
-        this.logger.error('Error minting winner badge:', error as Error);
+        console.error('Error minting winner badge:', error);
       }
     }
 
@@ -191,7 +183,7 @@ export class GameService {
   // Handle player action in FrameRace mode
   async handleFrameRaceAction(roomId: string, playerId: string, frame: number): Promise<any> {
     const gameState = this.gameStates.get(roomId);
-    if (!gameState || gameState.mode !== GameMode.CLASSIC) return { isCorrect: false, frame: 0 };
+    if (!gameState || gameState.mode !== GameMode.FRAME_RACE) return { isCorrect: false, frame: 0 };
 
     const isCorrect = frame === gameState.currentFrame;
     return { isCorrect, frame };
@@ -200,7 +192,7 @@ export class GameService {
   // Handle player action in SoundSnatch mode
   async handleSoundSnatchAction(roomId: string, playerId: string, guess: string): Promise<any> {
     const gameState = this.gameStates.get(roomId);
-    if (!gameState || gameState.mode !== GameMode.RANKED) return { isCorrect: false, guess: '' };
+    if (!gameState || gameState.mode !== GameMode.SOUND_SNATCH) return { isCorrect: false, guess: '' };
 
     const isCorrect = guess.toLowerCase() === gameState.currentSound?.toLowerCase();
     return { isCorrect, guess };
@@ -209,22 +201,32 @@ export class GameService {
   // Handle player action in TypeClash mode
   async handleTypeClashAction(roomId: string, playerId: string, typedText: string): Promise<any> {
     const gameState = this.gameStates.get(roomId);
-    if (!gameState || gameState.mode !== GameMode.CUSTOM) return { isCorrect: false, typedText: '' };
+    if (!gameState || gameState.mode !== GameMode.TYPE_CLASH) return { isCorrect: false, typedText: '' };
 
     const isCorrect = typedText === gameState.currentText;
     return { isCorrect, typedText };
   }
 
-  // Update game state
+  // Update game state for next round
   async updateGameState(roomId: string): Promise<void> {
     const gameState = await this.getGameState(roomId);
     if (!gameState) {
       throw new Error('Game room not found');
     }
 
-    const gameMode = this.gameModeFactory.getGameMode(gameState.mode);
-    const updatedState = await gameMode.updateGameState(gameState);
-    await this.updateGameRoom(roomId, updatedState);
+    switch (gameState.mode) {
+      case GameMode.FRAME_RACE:
+        gameState.currentFrame = (gameState.currentFrame || 0) + 1;
+        break;
+      case GameMode.SOUND_SNATCH:
+        gameState.currentSound = this.generateDistortedSound();
+        break;
+      case GameMode.TYPE_CLASH:
+        gameState.currentText = this.generateTypingText();
+        break;
+    }
+
+    await this.updateGameRoom(roomId, gameState);
   }
 
   // Helper methods for game state initialization
@@ -300,6 +302,7 @@ export class GameService {
   async getAllGameRooms(): Promise<Array<{ id: string; playerCount: number; gameState: GameState }>> {
     const rooms: Array<{ id: string; playerCount: number; gameState: GameState }> = [];
     
+    // Get rooms from memory
     for (const [id, state] of this.gameStates.entries()) {
       rooms.push({
         id,
@@ -311,35 +314,30 @@ export class GameService {
     return rooms;
   }
 
-  // Handle game action
   async handleGameAction(roomId: string, action: string, payload: any): Promise<any> {
-    const gameState = await this.getGameState(roomId);
-    if (!gameState) {
-      throw new Error('Game room not found');
+    const gameState = this.gameStates.get(roomId);
+    if (!gameState) throw new Error('Game room not found');
+    if (gameState.status !== GameStatus.IN_PROGRESS) throw new Error('Game not in progress');
+
+    let result;
+    switch (gameState.mode) {
+      case GameMode.FRAME_RACE:
+        result = await this.handleFrameRaceAction(roomId, payload.playerId, payload.frame);
+        break;
+      case GameMode.SOUND_SNATCH:
+        result = await this.handleSoundSnatchAction(roomId, payload.playerId, payload.guess);
+        break;
+      case GameMode.TYPE_CLASH:
+        result = await this.handleTypeClashAction(roomId, payload.playerId, payload.typedText);
+        break;
+      default:
+        throw new Error('Invalid game mode');
     }
 
-    if (gameState.status !== GameStatus.IN_PROGRESS) {
-      throw new Error('Game not in progress');
-    }
-
-    const gameMode = this.gameModeFactory.getGameMode(gameState.mode);
-    const result = await gameMode.handleAction(gameState, payload.playerId, payload);
-
-    // Update game state if needed
-    if (result.nextFrame || result.nextSound || result.nextText) {
-      const updatedState = await gameMode.updateGameState(gameState);
-      await this.updateGameRoom(roomId, updatedState);
-    }
-
-    // Check if round is complete
-    if (gameMode.isRoundComplete(gameState)) {
-      if (gameState.roundNumber >= gameState.maxRounds) {
-        await this.endGame(roomId);
-      } else {
-        gameState.roundNumber++;
-        await this.updateGameRoom(roomId, gameState);
-        this.startRoundTimeout(roomId);
-      }
+    if (result.isCorrect) {
+      const currentScore = gameState.scores.get(payload.playerId) || 0;
+      gameState.scores.set(payload.playerId, currentScore + 1);
+      await this.updateGameRoom(roomId, { scores: gameState.scores });
     }
 
     return result;

@@ -1,24 +1,26 @@
 export class AppError extends Error {
-  constructor(
-    public statusCode: number,
-    public message: string,
-    public isOperational = true
-  ) {
+  statusCode: number;
+  path?: string;
+
+  constructor(statusCode: number, message: string, path?: string) {
     super(message);
-    Object.setPrototypeOf(this, AppError.prototype);
-    Error.captureStackTrace(this, this.constructor);
+    this.statusCode = statusCode;
+    this.path = path;
+    this.name = 'AppError';
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message: string) {
     super(400, message);
+    this.name = 'ValidationError';
   }
 }
 
 export class AuthenticationError extends AppError {
-  constructor(message: string = 'Authentication failed') {
+  constructor(message: string) {
     super(401, message);
+    this.name = 'AuthenticationError';
   }
 }
 
@@ -47,19 +49,20 @@ export class RateLimitError extends AppError {
 }
 
 export class DatabaseError extends AppError {
-  constructor(message: string = 'Database operation failed') {
-    super(500, message, false);
+  constructor(message: string) {
+    super(500, message);
+    this.name = 'DatabaseError';
   }
 }
 
 export class WebSocketError extends AppError {
   constructor(message: string = 'WebSocket operation failed') {
-    super(500, message, false);
+    super(500, message);
   }
 }
 
 export class GameError extends AppError {
   constructor(message: string = 'Game operation failed') {
-    super(500, message, false);
+    super(500, message);
   }
 } 

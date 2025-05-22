@@ -4,82 +4,16 @@ import { LoggingService } from '../services/logging.service';
 
 const logger = new LoggingService();
 
-interface CustomError extends Error {
-  statusCode?: number;
-}
+export const errorHandler = (err: AppError, req: Request, res: Response, next: NextFunction) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
 
-export const errorHandler = (
-  err: CustomError,
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  if (err instanceof AppError) {
-    logger.warn('Operational error occurred', {
-      message: err.message,
-      statusCode: err.statusCode,
-      path: req.path,
-      method: req.method
-    });
-
-    return res.status(err.statusCode).json({
-      status: 'error',
-      message: err.message
-    });
-  }
-
-  // Handle JWT errors
-  if (err.name === 'JsonWebTokenError') {
-    logger.warn('JWT error occurred', {
-      message: err.message,
-      path: req.path,
-      method: req.method
-    });
-
-    return res.status(401).json({
-      status: 'error',
-      message: 'Invalid token'
-    });
-  }
-
-  if (err.name === 'TokenExpiredError') {
-    logger.warn('JWT expired', {
-      message: err.message,
-      path: req.path,
-      method: req.method
-    });
-
-    return res.status(401).json({
-      status: 'error',
-      message: 'Token expired'
-    });
-  }
-
-  // Handle validation errors
-  if (err.name === 'ValidationError') {
-    logger.warn('Validation error occurred', {
-      message: err.message,
-      path: req.path,
-      method: req.method
-    });
-
-    return res.status(400).json({
-      status: 'error',
-      message: err.message
-    });
-  }
-
-  // Handle unknown errors
-  logger.error('Unknown error occurred', err);
-
-  const errorResponse = {
-    message: err.message,
-    statusCode: err.statusCode || 500
-  };
-
-  return res.status(errorResponse.statusCode).json({
+  res.status(statusCode).json({
     status: 'error',
-    message: errorResponse.message
+    statusCode,
+    message,
+    path: req.path,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 };
 

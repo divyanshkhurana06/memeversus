@@ -1,6 +1,27 @@
-import { createClient, SupabaseClient, PostgrestSingleResponse } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { GameMode, GameStatus } from '../models/game.model';
-import { Player, Achievement } from '../models/player.model';
+import { LoggingService } from './logging.service';
+
+export interface Player {
+  wallet_address: string;
+  username?: string;
+  created_at: string;
+  wins: number;
+  games_played: number;
+  total_score: number;
+  rating: number;
+  badges: string[];
+  achievements: string[];
+  rank?: number;
+}
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  unlocked_at: string;
+  game_mode: GameMode;
+}
 
 interface GameRoom {
   id: string;
@@ -65,12 +86,11 @@ interface DatabaseLeaderboardEntry {
 
 export class DatabaseService {
   private supabase: SupabaseClient;
+  private logger: LoggingService;
 
-  constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL || '',
-      process.env.SUPABASE_KEY || ''
-    );
+  constructor(supabase: SupabaseClient, logger: LoggingService) {
+    this.supabase = supabase;
+    this.logger = logger;
   }
 
   // Player management
@@ -95,67 +115,88 @@ export class DatabaseService {
   }
 
   async getPlayer(walletAddress: string): Promise<Player | null> {
-    const response = await this.supabase
-      .from('players')
-      .select('*')
-      .eq('wallet_address', walletAddress)
-      .single();
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('*')
+        .eq('wallet_address', walletAddress)
+        .single();
 
-    if (response.error) throw response.error;
-    return response.data;
-  }
-
-  async updatePlayer(walletAddress: string, updates: Partial<Player>): Promise<void> {
-    const { data, error } = await this.supabase
-      .from('players')
-      .update(updates)
-      .eq('wallet_address', walletAddress);
-
-    if (error) {
-      throw new Error(error.message);
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      this.logger.error('Error getting player', error as Error);
+      throw error;
     }
   }
 
-  async addAchievement(walletAddress: string, achievement: Achievement): Promise<void> {
-    const player = await this.getPlayer(walletAddress);
-    if (!player) throw new Error('Player not found');
+  async updatePlayer(walletAddress: string, updates: Partial<Player>): Promise<Player> {
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .update(updates)
+        .eq('wallet_address', walletAddress)
+        .select()
+        .single();
 
-    const achievements = [...(player.achievements || []), achievement];
-    await this.updatePlayer(walletAddress, { achievements });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      this.logger.error('Error updating player', error as Error);
+      throw error;
+    }
+  }
+
+  async addAchievement(walletAddress: string, achievement: string): Promise<void> {
+    try {
+      const player = await this.getPlayer(walletAddress);
+      if (!player) throw new Error('Player not found');
+
+      const achievements = [...(player.achievements || []), achievement];
+      await this.updatePlayer(walletAddress, { achievements });
+    } catch (error) {
+      this.logger.error('Error adding achievement', error as Error);
+      throw error;
+    }
   }
 
   async addBadge(walletAddress: string, badgeId: string): Promise<void> {
-    const player = await this.getPlayer(walletAddress);
-    if (!player) throw new Error('Player not found');
+    try {
+      const player = await this.getPlayer(walletAddress);
+      if (!player) throw new Error('Player not found');
 
-    const badges = [...(player.badges || []), badgeId];
-    await this.updatePlayer(walletAddress, { badges });
-  }
-
-  async getTopPlayers(gameMode: GameMode, limit: number = 10): Promise<Array<{ walletAddress: string; rating: number }>> {
-    const response = await this.supabase
-      .from('players')
-      .select('wallet_address, rating')
-      .order('rating', { ascending: false })
-      .limit(limit);
-
-    if (response.error) throw response.error;
-    return (response.data || []).map(player => ({
-      walletAddress: player.wallet_address,
-      rating: player.rating
-    }));
+      const badges = [...(player.badges || []), badgeId];
+      await this.updatePlayer(walletAddress, { badges });
+    } catch (error) {
+      this.logger.error('Error adding badge', error as Error);
+      throw error;
+    }
   }
 
   // Leaderboard
-  async getLeaderboard(limit: number = 10, offset: number = 0): Promise<any[]> {
-    const response = await this.supabase
-      .from('players')
-      .select('wallet_address, username, rating, total_games, wins, losses, draws')
-      .order('rating', { ascending: false })
-      .range(offset, offset + limit - 1);
+  async getLeaderboard(limit: number = 10, offset: number = 0): Promise<LeaderboardEntry[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('wallet_address, username, wins, games_played, total_score, badges')
+        .order('total_score', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (response.error) throw response.error;
-    return response.data || [];
+      if (error) throw error;
+
+      return (data as any[]).map((entry, index) => ({
+        wallet_address: entry.wallet_address,
+        username: entry.username,
+        wins: entry.wins,
+        games_played: entry.games_played,
+        total_score: entry.total_score,
+        badges: entry.badges,
+        rank: offset + index + 1
+      }));
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      throw error;
+    }
   }
 
   async getPlayerRank(walletAddress: string): Promise<number> {
@@ -172,8 +213,8 @@ export class DatabaseService {
   }
 
   // Game room management
-  async createGameRoom(roomId: string, mode: GameMode): Promise<any> {
-    const response = await this.supabase
+  async createGameRoom(roomId: string, mode: GameMode): Promise<GameRoom> {
+    const { data, error } = await this.supabase
       .from('game_rooms')
       .insert({
         id: roomId,
@@ -186,17 +227,20 @@ export class DatabaseService {
       .select()
       .single();
 
-    if (response.error) throw response.error;
-    return response.data;
+    if (error) throw error;
+    return data;
   }
 
-  async updateGameRoom(roomId: string, updates: any): Promise<void> {
-    const response = await this.supabase
+  async updateGameRoom(roomId: string, updates: Partial<GameRoom>): Promise<GameRoom> {
+    const { data, error } = await this.supabase
       .from('game_rooms')
       .update(updates)
-      .eq('id', roomId);
+      .eq('id', roomId)
+      .select()
+      .single();
 
-    if (response.error) throw response.error;
+    if (error) throw error;
+    return data;
   }
 
   async getGameRoom(roomId: string): Promise<GameRoom | null> {
@@ -211,60 +255,83 @@ export class DatabaseService {
   }
 
   async addPlayerToRoom(roomId: string, walletAddress: string): Promise<void> {
-    const response = await this.supabase.rpc('add_player_to_room', {
-      p_room_id: roomId,
-      p_wallet_address: walletAddress
-    });
+    // First get the current players array
+    const { data: gameRoom, error: fetchError } = await this.supabase
+      .from('game_rooms')
+      .select('players')
+      .eq('id', roomId)
+      .single();
 
-    if (response.error) throw response.error;
+    if (fetchError) throw fetchError;
+
+    // Add the new player to the array
+    const updatedPlayers = [...(gameRoom.players || []), walletAddress];
+
+    // Update the game room with the new players array
+    const { error: updateError } = await this.supabase
+      .from('game_rooms')
+      .update({ players: updatedPlayers })
+      .eq('id', roomId);
+
+    if (updateError) throw updateError;
   }
 
   // Game results
-  async recordGameResult(
-    roomId: string,
-    winnerId: string,
-    result: {
-      gameMode: GameMode;
-      score: number;
-      txDigest: string;
-    }
-  ): Promise<void> {
-    const response = await this.supabase
-      .from('game_results')
-      .insert({
-        room_id: roomId,
-        winner_id: winnerId,
-        game_mode: result.gameMode,
-        score: result.score,
-        tx_digest: result.txDigest,
-        created_at: new Date().toISOString()
-      });
+  async recordGameResult(roomId: string, playerId: string, result: GameResult): Promise<void> {
+    try {
+      // Record game result
+      await this.supabase
+        .from('game_results')
+        .insert({
+          room_id: roomId,
+          player_id: playerId,
+          game_mode: result.gameMode,
+          score: result.score,
+          tx_digest: result.txDigest,
+          created_at: new Date().toISOString()
+        });
 
-    if (response.error) throw response.error;
+      // Update player stats
+      const player = await this.getPlayer(playerId);
+      if (player) {
+        const newStats = {
+          games_played: player.games_played + 1,
+          total_score: player.total_score + result.score,
+          wins: player.wins + (result.score >= 3 ? 1 : 0)
+        };
+        await this.updatePlayer(playerId, newStats);
+      }
+    } catch (error) {
+      console.error('Error recording game result:', error);
+      throw error;
+    }
   }
 
   // Get leaderboard by game mode
-  async getLeaderboardByGameMode(
-    gameMode: GameMode,
-    limit: number = 10,
-    offset: number = 0
-  ): Promise<any[]> {
-    const response = await this.supabase
-      .from('game_results')
-      .select(`
-        winner_id,
-        players!inner (
-          wallet_address,
-          username,
-          rating
-        )
-      `)
-      .eq('game_mode', gameMode)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+  async getLeaderboardByGameMode(gameMode: GameMode, limit: number = 10, offset: number = 0): Promise<LeaderboardEntry[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('wallet_address, username, wins, games_played, total_score, badges')
+        .eq('game_mode', gameMode)
+        .order('total_score', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (response.error) throw response.error;
-    return response.data || [];
+      if (error) throw error;
+
+      return (data as any[]).map((entry, index) => ({
+        wallet_address: entry.wallet_address,
+        username: entry.username,
+        wins: entry.wins,
+        games_played: entry.games_played,
+        total_score: entry.total_score,
+        badges: entry.badges,
+        rank: offset + index + 1
+      }));
+    } catch (error) {
+      console.error('Error fetching game mode leaderboard:', error);
+      throw error;
+    }
   }
 
   async getTotalPlayers(): Promise<number> {
@@ -333,7 +400,19 @@ export class DatabaseService {
     }
   }
 
-  async updatePlayerStats(walletAddress: string, stats: Partial<Player>): Promise<void> {
-    return this.updatePlayer(walletAddress, stats);
+  async getTopPlayers(gameMode: GameMode, limit: number = 10): Promise<Player[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('players')
+        .select('wallet_address, username, rating, created_at, wins, games_played, total_score, badges, achievements')
+        .order('rating', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      this.logger.error('Error getting top players', error as Error);
+      throw error;
+    }
   }
 } 

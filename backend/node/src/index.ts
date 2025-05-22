@@ -13,6 +13,7 @@ import { LoggingService } from './services/logging.service';
 import { MetricsService } from './services/metrics.service';
 import { GameMode, GameStatus } from './models/game.model';
 import { DatabaseService } from './services/database.service';
+import { supabase } from './config/supabase';
 
 // Load environment variables
 dotenv.config();
@@ -27,11 +28,11 @@ const io = new Server(httpServer, {
 });
 
 // Initialize services
-const dbService = new DatabaseService();
-const suiService = new SuiService();
+const loggingService = new LoggingService();
+const dbService = new DatabaseService(supabase, loggingService);
+const suiService = new SuiService(loggingService);
 const gameService = new GameService(dbService, suiService);
 const recoveryService = new RecoveryService(gameService, dbService, suiService);
-const loggingService = new LoggingService();
 const metricsService = new MetricsService(dbService);
 
 // Rate limiting configuration

@@ -6,15 +6,18 @@ export interface Achievement {
 }
 
 export interface Player {
-  walletAddress: string;
-  username?: string;
+  wallet_address: string;
+  username: string;
+  created_at: string;
+  games_played: number;
+  total_score: number;
   rating: number;
-  totalGames: number;
   wins: number;
   losses: number;
   draws: number;
+  achievements: string[];
   badges: string[];
-  achievements: Achievement[];
-  createdAt: string;
-  updatedAt: string;
+  last_active: string;
+  is_online: boolean;
+  current_game_id?: string;
 } 

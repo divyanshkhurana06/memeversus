@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "lib": ["es2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "typeRoots": ["./node_modules/@types", "./global.d.ts"],
+    "baseUrl": ".",
+    "paths": {
+      "@mysten/sui": ["./node_modules/@mysten/sui"]
+    }
+  },
+  "include": ["src/**/*", "global.d.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
