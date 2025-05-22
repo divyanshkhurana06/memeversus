@@ -1,33 +1,48 @@
-import { JsonRpcProvider, Connection } from '@mysten/sui';
-import { Transaction } from '@mysten/sui';
+import { SuiClient } from '@mysten/sui/client';
+import { Transaction } from '@mysten/sui/transactions';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { fromB64 } from '@mysten/bcs';
 import { GameMode, GameStatus } from '../models/game.model';
 import { LoggingService } from './logging.service';
 
+const PRIVATE_KEY = process.env.SUI_PRIVATE_KEY || '';
+const keypair = PRIVATE_KEY ? Ed25519Keypair.fromSecretKey(fromB64(PRIVATE_KEY)) : Ed25519Keypair.generate();
+
 export class SuiService {
-  private provider: JsonRpcProvider;
+  private provider: SuiClient;
   private logger: LoggingService;
 
   constructor(logger: LoggingService) {
     this.logger = logger;
-    const connection = new Connection({
-      fullnode: process.env.SUI_RPC_URL || 'https://fullnode.mainnet.sui.io'
-    });
-    this.provider = new JsonRpcProvider(connection);
+    this.provider = new SuiClient({ url: process.env.SUI_RPC_URL || 'https://fullnode.mainnet.sui.io' });
   }
 
   async verifyWalletOwnership(walletAddress: string, signature: string): Promise<boolean> {
     try {
-      // TODO: Implement actual signature verification
-      // For now, just return true (or implement your own logic)
-      // const balance = await this.provider.getBalance({
-      //   owner: walletAddress,
-      //   coinType: '0x2::sui::SUI'
-      // });
-      // return balance.totalBalance > 0;
-      return true;
-    } catch (error) {
-      console.error('Error verifying wallet ownership:', error);
+      // In a real implementation, you would:
+      // 1. Get the message that was signed
+      // 2. Verify the signature against the message and wallet address
+      // 3. Return true if verification succeeds
+
+      // For now, we'll just check if the signature is a valid hex string
+      const isValidHex = /^[0-9a-fA-F]+$/.test(signature);
+      return isValidHex;
+    } catch (error: unknown) {
+      this.logger.error('Error verifying wallet ownership:', error instanceof Error ? error : new Error(String(error)));
       return false;
+    }
+  }
+
+  async getBalance(walletAddress: string): Promise<string> {
+    try {
+      const balance = await this.provider.getBalance({
+        owner: walletAddress,
+        coinType: '0x2::sui::SUI'
+      });
+      return balance.totalBalance;
+    } catch (error: unknown) {
+      this.logger.error('Error getting wallet balance:', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 
@@ -38,9 +53,10 @@ export class SuiService {
         target: `${process.env.NFT_PACKAGE_ID}::game_nft::mint`,
         arguments: [tx.pure.address(playerAddress), tx.pure.u8(Number(gameMode))]
       });
-      const bytes = await tx.build();
-      const result = await this.provider.executeTransactionBlock({
-        transactionBlock: bytes
+      const result = await this.provider.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: { showEffects: true }
       });
       return result.digest;
     } catch (error) {
@@ -70,10 +86,13 @@ export class SuiService {
         target: `${contractAddress}::game::create_game`,
         arguments: [tx.pure.address(playerAddress)]
       });
-      const bytes = await tx.build();
-      const result = await this.provider.executeTransactionBlock({
-        transactionBlock: bytes
+
+      const result = await this.provider.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: { showEffects: true }
       });
+
       return result.digest;
     } catch (error) {
       this.logger.error('Error creating game', error as Error);
@@ -89,9 +108,11 @@ export class SuiService {
         target: `${contractAddress}::game::join_game`,
         arguments: [tx.pure.string(gameId), tx.pure.address(playerAddress)]
       });
-      const bytes = await tx.build();
-      await this.provider.executeTransactionBlock({
-        transactionBlock: bytes
+
+      await this.provider.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: { showEffects: true }
       });
     } catch (error) {
       this.logger.error('Error joining game', error as Error);
@@ -107,9 +128,11 @@ export class SuiService {
         target: `${contractAddress}::game::make_move`,
         arguments: [tx.pure.string(gameId), tx.pure.address(playerAddress), typeof move === 'number' ? tx.pure.u8(move) : tx.pure.string(String(move))]
       });
-      const bytes = await tx.build();
-      await this.provider.executeTransactionBlock({
-        transactionBlock: bytes
+
+      await this.provider.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: { showEffects: true }
       });
     } catch (error) {
       this.logger.error('Error making move', error as Error);
@@ -145,19 +168,6 @@ export class SuiService {
       return result;
     } catch (error) {
       this.logger.error('Error getting object:', error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  async getBalance(address: string): Promise<string> {
-    try {
-      const result = await this.provider.getBalance({
-        owner: address,
-        coinType: '0x2::sui::SUI'
-      });
-      return result.totalBalance;
-    } catch (error) {
-      this.logger.error('Error getting balance:', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }

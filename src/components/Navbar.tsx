@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, X, Gamepad2, Trophy, User } from 'lucide-react';
+import { Menu, X, Gamepad2, Trophy } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { WalletConnect } from './WalletConnect';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +38,10 @@ const Navbar: React.FC = () => {
     visible: { opacity: 1, y: 0 }
   };
 
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-lighter/80 backdrop-blur-lg border-b border-dark-border">
       <div className="container mx-auto px-4 md:px-6">
@@ -67,17 +72,13 @@ const Navbar: React.FC = () => {
               <Link to="/about" className="hover:text-primary-400 transition-colors duration-300 font-medium">About Us</Link>
             </motion.div>
             
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.3, duration: 0.5 }}
-              whileHover={{ scale: 1.05, boxShadow: '0 0 10px rgba(139, 92, 246, 0.7)' }}
-              whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-2 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white px-4 py-2 rounded-md font-medium"
             >
-              <User size={18} />
-              <span>Connect Wallet</span>
-            </motion.button>
+              <WalletConnect />
+            </motion.div>
           </div>
           
           <div className="md:hidden">
@@ -114,15 +115,9 @@ const Navbar: React.FC = () => {
             <motion.div variants={itemVariants}>
               <Link to="/about" className="block text-gray-300 hover:text-primary-400 transition-colors duration-300 font-medium py-2">About Us</Link>
             </motion.div>
-            <motion.button
-              variants={itemVariants}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-full mt-3 flex items-center justify-center gap-2 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white px-4 py-3 rounded-md font-medium"
-            >
-              <User size={18} />
-              <span>Connect Wallet</span>
-            </motion.button>
+            <motion.div variants={itemVariants}>
+              <WalletConnect />
+            </motion.div>
           </div>
         </motion.div>
       )}

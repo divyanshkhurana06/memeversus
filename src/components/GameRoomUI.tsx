@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Users, MessageSquare, Trophy, Clock } from 'lucide-react';
+import { GameStatus } from '../store/slices/gameSlice';
 
 interface Message {
   id: number;
@@ -16,8 +17,37 @@ interface Player {
   score: number;
 }
 
-const GameRoomUI: React.FC = () => {
-  const [countdown, setCountdown] = useState(10);
+interface GameRoomUIProps {
+  videoRef: React.RefObject<HTMLVideoElement>;
+  onVideoMetadataLoaded: () => void;
+  onPause: () => void;
+  onStart: () => void;
+  status: GameStatus;
+  score: number;
+  timeRemaining: number;
+  currentRound: number;
+  totalRounds: number;
+  roundScores: number[];
+  isRoundComplete: boolean;
+  roundCountdown: number;
+  preGameCountdown: number;
+}
+
+const GameRoomUI: React.FC<GameRoomUIProps> = ({ 
+  videoRef,
+  onVideoMetadataLoaded,
+  onPause,
+  onStart,
+  status, 
+  score, 
+  timeRemaining,
+  currentRound,
+  totalRounds,
+  roundScores,
+  isRoundComplete,
+  roundCountdown,
+  preGameCountdown
+}) => {
   const [chatMessages, setChatMessages] = useState<Message[]>([
     { id: 1, user: 'MemeKing', text: 'Good luck everyone!', avatar: 'https://i.pravatar.cc/100?img=1' },
     { id: 2, user: 'DankLord', text: 'This is gonna be fun', avatar: 'https://i.pravatar.cc/100?img=2' },
@@ -31,28 +61,6 @@ const GameRoomUI: React.FC = () => {
     { id: 4, name: 'MemeLord', avatar: 'https://i.pravatar.cc/100?img=4', score: 2200 },
     { id: 5, name: 'You', avatar: 'https://i.pravatar.cc/100?img=5', score: 1800 },
   ]);
-
-  // Animate countdown
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
-
-  // Animate score changes periodically
-  useEffect(() => {
-    const scoreInterval = setInterval(() => {
-      setPlayers(prevPlayers => 
-        prevPlayers.map(player => ({
-          ...player,
-          score: player.score + Math.floor(Math.random() * 50)
-        })).sort((a, b) => b.score - a.score)
-      );
-    }, 3000);
-    
-    return () => clearInterval(scoreInterval);
-  }, []);
 
   return (
     <section className="py-20 relative overflow-hidden">
@@ -69,9 +77,9 @@ const GameRoomUI: React.FC = () => {
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <p className="text-primary-400 font-medium mb-2">Live Experience</p>
+          <p className="text-primary-400 font-medium mb-2">Frame Race</p>
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-white">
-            Game Room Preview
+            Pause at the Perfect Moment
           </h2>
         </motion.div>
         
@@ -134,83 +142,83 @@ const GameRoomUI: React.FC = () => {
             >
               <div className="text-center">
                 <div className="bg-dark-lighter rounded-lg p-6 relative">
-                  <div className="absolute top-4 right-4 flex items-center bg-dark/60 rounded-full px-3 py-1">
-                    <Clock size={14} className="text-primary-400 mr-1" />
-                    <span className="text-white text-sm font-medium">00:{countdown.toString().padStart(2, '0')}</span>
-                  </div>
-                  
-                  <div className="mb-8 flex flex-col items-center justify-center">
-                    <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                      Get Ready for <span className="text-primary-400">FrameRace</span>!
-                    </h3>
-                    <p className="text-gray-400 max-w-2xl">
-                      You'll be shown a meme video. Be the first to pause at the most iconic frame!
-                    </p>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-primary-500/10 to-accent-500/10 rounded-xl border border-dark-border aspect-video flex items-center justify-center mb-8">
-                    <motion.div
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ repeat: Infinity, duration: 1.5 }}
-                      className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-heading font-bold"
-                    >
-                      {countdown}
-                    </motion.div>
-                  </div>
-                  
-                  <div className="text-center">
-                    <motion.button
-                      whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(139, 92, 246, 0.5)' }}
-                      whileTap={{ scale: 0.95 }}
-                      className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-md font-medium inline-flex items-center"
-                    >
-                      <span>Get Ready!</span>
-                    </motion.button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Leaderboard sidebar */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-              className="w-full lg:w-72 bg-dark-lighter border-l border-dark-border"
-            >
-              <div className="p-4 border-b border-dark-border flex items-center">
-                <Trophy size={18} className="text-primary-400 mr-2" />
-                <h3 className="font-medium text-white">Live Leaderboard</h3>
-              </div>
-              
-              <div className="p-3 space-y-2">
-                {players.map((player, index) => (
-                  <motion.div 
-                    key={player.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.2 + index * 0.1, duration: 0.4 }}
-                    className={`flex items-center justify-between p-2 rounded-md ${player.name === 'You' ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
-                  >
-                    <div className="flex items-center">
-                      <span className="w-5 text-center text-gray-500 mr-2">{index + 1}</span>
-                      <img src={player.avatar} alt={player.name} className="w-8 h-8 rounded-full mr-2" />
-                      <span className={`font-medium ${player.name === 'You' ? 'text-primary-400' : 'text-white'}`}>
-                        {player.name}
-                      </span>
+                  {/* Timer display */}
+                  {(status === 'waiting' || status === 'playing') && (
+                    <div className="absolute top-4 right-4 flex items-center bg-dark/60 rounded-full px-3 py-1">
+                      <Clock size={14} className="text-primary-400 mr-1" />
+                      <span className="text-white text-sm font-medium">{timeRemaining.toString().padStart(2, '0')}s</span>
                     </div>
-                    <motion.span 
-                      key={player.score}
-                      initial={{ scale: 1.2 }}
-                      animate={{ scale: 1 }}
-                      className="text-gray-300 font-mono"
-                    >
-                      {player.score.toLocaleString()}
-                    </motion.span>
-                  </motion.div>
-                ))}
+                  )}
+
+                  {/* Game State Display */}
+                  {status === 'idle' && (
+                     <div className="mb-8 flex flex-col items-center justify-center">
+                        <h3 className="text-2xl font-heading font-bold text-white mb-4">
+                          Get Ready to Play!
+                        </h3>
+                        <p className="text-gray-400 max-w-2xl">
+                          Connect your wallet and click start to begin.
+                        </p>
+                        <button
+                          onClick={onStart}
+                          className="mt-4 bg-primary-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-600 transition-colors"
+                        >
+                          Start Game
+                        </button>
+                     </div>
+                  )}
+
+                   {status === 'waiting' && (
+                     <div className="mb-8 flex flex-col items-center justify-center">
+                        <h3 className="text-2xl font-heading font-bold text-white mb-4">
+                          Waiting for Game to Start...
+                        </h3>
+                        <p className="text-gray-400 max-w-2xl">
+                          Game starts in <span className="text-primary-400">{preGameCountdown}</span> seconds.
+                        </p>
+                     </div>
+                   )}
+
+                   {status === 'playing' && (
+                     <div className="mb-8">
+                        <video
+                          ref={videoRef}
+                          onLoadedMetadata={onVideoMetadataLoaded}
+                          onClick={onPause}
+                          className="w-full rounded-lg cursor-pointer"
+                          src="/path/to/your/meme-video.mp4"
+                        />
+                        <div className="mt-4 text-center">
+                          <p className="text-gray-400">
+                            Round {currentRound} of {totalRounds}
+                          </p>
+                          <p className="text-primary-400 font-semibold">
+                            Score: {score}
+                          </p>
+                        </div>
+                     </div>
+                   )}
+
+                   {isRoundComplete && (
+                     <div className="mb-8 flex flex-col items-center justify-center">
+                        <h3 className="text-2xl font-heading font-bold text-white mb-4">
+                          Round {currentRound} Complete!
+                        </h3>
+                        <p className="text-gray-400">
+                          Score for this round: {roundScores[currentRound - 1] || 0}
+                        </p>
+                        {currentRound < totalRounds ? (
+                          <p className="text-primary-400 mt-2">
+                            Next round in {roundCountdown} seconds
+                          </p>
+                        ) : (
+                          <p className="text-primary-400 mt-2">
+                            Game Over!
+                          </p>
+                        )}
+                     </div>
+                   )}
+                </div>
               </div>
             </motion.div>
           </div>

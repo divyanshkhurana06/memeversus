@@ -19,6 +19,9 @@
       "@mysten/sui": ["./node_modules/@mysten/sui"]
     }
   },
-  "include": ["src/**/*", "global.d.ts"],
+  "include": [
+    "src/types/**/*",
+    "src/**/*"
+  ],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

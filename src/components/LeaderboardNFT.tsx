@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Award, Star, ChevronRight } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 
 interface NFTCardProps {
   image: string;
@@ -50,13 +52,24 @@ const NFTCard: React.FC<NFTCardProps> = ({ image, name, rarity, owner, index }) 
 };
 
 const LeaderboardNFT: React.FC = () => {
-  const topPlayers = [
-    { rank: 1, name: 'MemeKing', score: 42650, avatar: 'https://i.pravatar.cc/100?img=1', badges: 8 },
-    { rank: 2, name: 'DankLord', score: 38920, avatar: 'https://i.pravatar.cc/100?img=2', badges: 6 },
-    { rank: 3, name: 'GigaChad', score: 36700, avatar: 'https://i.pravatar.cc/100?img=3', badges: 7 },
-    { rank: 4, name: 'MemeLord', score: 32450, avatar: 'https://i.pravatar.cc/100?img=4', badges: 5 },
-    { rank: 5, name: 'Doge2Moon', score: 29800, avatar: 'https://i.pravatar.cc/100?img=5', badges: 4 },
-  ];
+  // Get leaderboard entries from Redux store
+  const leaderboardEntries = useSelector((state: RootState) => state.leaderboard.global);
+  const { username } = useSelector((state: RootState) => state.user);
+
+  // Sort entries by score and get top 5
+  const topPlayers = useMemo(() => {
+    return [...leaderboardEntries]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((entry, index) => ({
+        rank: index + 1,
+        name: entry.username,
+        score: entry.score,
+        avatar: `https://i.pravatar.cc/100?img=${index + 1}`, // Placeholder avatar
+        badges: Math.floor(entry.score / 1000), // Placeholder badge calculation
+        gameMode: entry.gameMode
+      }));
+  }, [leaderboardEntries]);
   
   const nfts = [
     { image: 'https://images.pexels.com/photos/5202174/pexels-photo-5202174.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1', name: 'Gold Doge', rarity: 'Legendary', owner: 'MemeKing' },
@@ -110,45 +123,51 @@ const LeaderboardNFT: React.FC = () => {
               </div>
               
               <div className="divide-y divide-dark-border">
-                {topPlayers.map((player, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 + index * 0.1, duration: 0.4 }}
-                    className={`flex items-center justify-between p-2 rounded-md ${player.name === 'You' ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
-                  >
-                    <div className="w-8 h-8 flex items-center justify-center mr-3">
-                      {player.rank <= 3 ? (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          player.rank === 1 ? 'bg-yellow-500/20 text-yellow-400' : 
-                          player.rank === 2 ? 'bg-gray-400/20 text-gray-300' : 
-                          'bg-amber-700/20 text-amber-600'
-                        }`}>
-                          <Trophy size={16} />
-                        </div>
-                      ) : (
-                        <span className="text-gray-500 font-medium">{player.rank}</span>
-                      )}
-                    </div>
-                    
-                    <img src={player.avatar} alt={player.name} className="w-10 h-10 rounded-full mr-3" />
-                    
-                    <div className="flex-1">
-                      <h4 className="font-medium text-white">{player.name}</h4>
-                      <div className="flex items-center">
-                        <Award size={14} className="text-primary-400 mr-1" />
-                        <span className="text-xs text-gray-400">{player.badges} Badges</span>
+                {topPlayers.length > 0 ? (
+                  topPlayers.map((player, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.1 + index * 0.1, duration: 0.4 }}
+                      className={`flex items-center justify-between p-2 rounded-md ${player.name === username ? 'bg-primary-500/20 border border-primary-500/30' : 'hover:bg-dark/40'}`}
+                    >
+                      <div className="w-8 h-8 flex items-center justify-center mr-3">
+                        {player.rank <= 3 ? (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            player.rank === 1 ? 'bg-yellow-500/20 text-yellow-400' : 
+                            player.rank === 2 ? 'bg-gray-400/20 text-gray-300' : 
+                            'bg-amber-700/20 text-amber-600'
+                          }`}>
+                            <Trophy size={16} />
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 font-medium">{player.rank}</span>
+                        )}
                       </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-white font-medium">{player.score.toLocaleString()}</div>
-                      <div className="text-xs text-gray-400">total points</div>
-                    </div>
-                  </motion.div>
-                ))}
+                      
+                      <img src={player.avatar} alt={player.name} className="w-10 h-10 rounded-full mr-3" />
+                      
+                      <div className="flex-1">
+                        <h4 className="font-medium text-white">{player.name}</h4>
+                        <div className="flex items-center">
+                          <Award size={14} className="text-primary-400 mr-1" />
+                          <span className="text-xs text-gray-400">{player.gameMode}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-white font-medium">{player.score.toLocaleString()}</div>
+                        <div className="text-xs text-gray-400">points</div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-gray-400">
+                    No scores yet. Be the first to play!
+                  </div>
+                )}
               </div>
               
               <div className="p-4 bg-dark-lighter flex justify-center">
