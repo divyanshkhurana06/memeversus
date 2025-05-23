@@ -29,7 +29,7 @@ describe('RateLimitService', () => {
 
     // Mock the rate limit middleware
     (rateLimit as jest.Mock).mockImplementation((options) => {
-      return (req: Request, res: Response, next: Function) => {
+      return (req: Request, res: Response, next: (err?: Error) => void) => {
         if (req.ip === '127.0.0.1') {
           res.status(429).json({ error: options.message || 'Too many requests' });
         } else {
