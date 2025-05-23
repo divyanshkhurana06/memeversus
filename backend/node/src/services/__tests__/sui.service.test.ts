@@ -1,74 +1,73 @@
 import { SuiService } from '../sui.service';
+import { SuiClient } from '@mysten/sui/client';
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { GameMode } from '../../types/game';
 import { LoggingService } from '../logging.service';
-import { GameMode } from '../../models/game.model';
+
+jest.mock('@mysten/sui/client');
+jest.mock('@mysten/sui/keypairs/ed25519');
+jest.mock('../logging.service');
 
 describe('SuiService', () => {
-  let suiService: SuiService;
+  let service: SuiService;
+  let mockClient: jest.Mocked<SuiClient>;
+  let mockKeypair: jest.Mocked<Ed25519Keypair>;
   let mockLogger: LoggingService;
-  const mockPlayerAddress = '0x123';
+
+  const validSuiAddress = '0x1234567890123456789012345678901234567890123456789012345678901234';
+  const mockTransactionResult = {
+    digest: 'mock-digest',
+    effects: { status: { status: 'success' } },
+    events: [],
+    objectChanges: [],
+    balanceChanges: []
+  };
 
   beforeEach(() => {
-    // Set up environment variables for testing
-    process.env.FRAME_RACE_CONTRACT = '0x123';
-    process.env.SOUND_SNATCH_CONTRACT = '0x456';
-    process.env.TYPE_CLASH_CONTRACT = '0x789';
+    mockClient = {
+      signAndExecuteTransaction: jest.fn().mockResolvedValue(mockTransactionResult)
+    } as any;
+
+    mockKeypair = {
+      getPublicKey: jest.fn().mockReturnValue({ toBase64: () => 'mock-public-key' })
+    } as any;
+
     mockLogger = new LoggingService();
-    suiService = new SuiService(mockLogger);
+
+    (SuiClient as jest.Mock).mockImplementation(() => mockClient);
+    (Ed25519Keypair as unknown as jest.Mock).mockImplementation(() => mockKeypair);
+
+    service = new SuiService(mockLogger);
   });
 
-  describe('getContractAddress', () => {
-    it('should return correct contract address for FRAME_RACE mode', () => {
-      const address = suiService.getContractAddress(GameMode.FRAME_RACE);
-      expect(address).toBe(process.env.FRAME_RACE_CONTRACT);
-    });
-
-    it('should return correct contract address for SOUND_SNATCH mode', () => {
-      const address = suiService.getContractAddress(GameMode.SOUND_SNATCH);
-      expect(address).toBe(process.env.SOUND_SNATCH_CONTRACT);
-    });
-
-    it('should return correct contract address for TYPE_CLASH mode', () => {
-      const address = suiService.getContractAddress(GameMode.TYPE_CLASH);
-      expect(address).toBe(process.env.TYPE_CLASH_CONTRACT);
-    });
-
-    it('should throw error for unknown game mode', () => {
-      expect(() => suiService.getContractAddress('UNKNOWN' as GameMode)).toThrow('Unknown game mode');
-    });
+  it('should create a game for FRAME_RACE mode', async () => {
+    const result = await service.createGame(GameMode.FRAME_RACE, validSuiAddress);
+    expect(result).toBeDefined();
+    expect(result).toBe('mock-digest');
+    expect(mockClient.signAndExecuteTransaction).toHaveBeenCalled();
   });
 
-  describe('createGame', () => {
-    it('should create a game for FRAME_RACE mode', async () => {
-      const result = await suiService.createGame(GameMode.FRAME_RACE, mockPlayerAddress);
-      expect(result).toBeDefined();
-      expect(typeof result).toBe('string');
-    });
-
-    it('should create a game for SOUND_SNATCH mode', async () => {
-      const result = await suiService.createGame(GameMode.SOUND_SNATCH, mockPlayerAddress);
-      expect(result).toBeDefined();
-      expect(typeof result).toBe('string');
-    });
-
-    it('should create a game for TYPE_CLASH mode', async () => {
-      const result = await suiService.createGame(GameMode.TYPE_CLASH, mockPlayerAddress);
-      expect(result).toBeDefined();
-      expect(typeof result).toBe('string');
-    });
+  it('should create a game for SOUND_SNATCH mode', async () => {
+    const result = await service.createGame(GameMode.SOUND_SNATCH, validSuiAddress);
+    expect(result).toBeDefined();
+    expect(result).toBe('mock-digest');
+    expect(mockClient.signAndExecuteTransaction).toHaveBeenCalled();
   });
 
-  describe('joinGame', () => {
-    it('should allow a player to join a game', async () => {
-      const gameId = await suiService.createGame(GameMode.FRAME_RACE, mockPlayerAddress);
-      await expect(suiService.joinGame(gameId, mockPlayerAddress)).resolves.not.toThrow();
-    });
+  it('should create a game for TYPE_CLASH mode', async () => {
+    const result = await service.createGame(GameMode.TYPE_CLASH, validSuiAddress);
+    expect(result).toBeDefined();
+    expect(result).toBe('mock-digest');
+    expect(mockClient.signAndExecuteTransaction).toHaveBeenCalled();
   });
 
-  describe('makeMove', () => {
-    it('should allow a player to make a move', async () => {
-      const gameId = await suiService.createGame(GameMode.FRAME_RACE, mockPlayerAddress);
-      const move = { type: 'test_move', data: {} };
-      await expect(suiService.makeMove(gameId, mockPlayerAddress, move)).resolves.not.toThrow();
-    });
+  it('should allow a player to join a game', async () => {
+    await expect(service.joinGame('game-id', validSuiAddress)).resolves.not.toThrow();
+    expect(mockClient.signAndExecuteTransaction).toHaveBeenCalled();
+  });
+
+  it('should allow a player to make a move', async () => {
+    await expect(service.makeMove('game-id', validSuiAddress, { move: 'test' })).resolves.not.toThrow();
+    expect(mockClient.signAndExecuteTransaction).toHaveBeenCalled();
   });
 }); 

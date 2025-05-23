@@ -3,26 +3,43 @@ import { LoggingService } from '../logging.service';
 import { supabase } from '../../config/supabase';
 import { Player } from '../../models/player.model';
 import { GameMode } from '../../models/game.model';
-import { PostgrestResponse, PostgrestError, createClient } from '@supabase/supabase-js';
+import { PostgrestResponse, PostgrestError, createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Mock Supabase client
-const mockSupabase = {
-  from: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  insert: jest.fn().mockReturnThis(),
-  update: jest.fn().mockReturnThis(),
-  eq: jest.fn().mockReturnThis(),
-  order: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockReturnThis(),
-  single: jest.fn().mockReturnThis(),
+type MockSupabaseClient = {
+  from: jest.Mock;
+  select: jest.Mock;
+  insert: jest.Mock;
+  update: jest.Mock;
+  eq: jest.Mock;
+  order: jest.Mock;
+  limit: jest.Mock;
+  single: jest.Mock;
+  auth: {
+    signUp: jest.Mock;
+    signIn: jest.Mock;
+    signOut: jest.Mock;
+  };
 };
 
-// Mock createClient
 jest.mock('@supabase/supabase-js', () => {
-  const actual = jest.requireActual('@supabase/supabase-js');
+  const mockSupabaseClient: MockSupabaseClient = {
+    from: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    insert: jest.fn().mockReturnThis(),
+    update: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    single: jest.fn().mockReturnThis(),
+    auth: {
+      signUp: jest.fn(),
+      signIn: jest.fn(),
+      signOut: jest.fn(),
+    },
+  };
+
   return {
-    ...actual,
-    createClient: jest.fn(() => mockSupabase)
+    createClient: jest.fn(() => mockSupabaseClient as unknown as SupabaseClient)
   };
 });
 
@@ -49,7 +66,7 @@ describe('DatabaseService', () => {
   beforeEach(() => {
     mockLogger = new LoggingService();
     databaseService = new DatabaseService(supabase, mockLogger);
-    (databaseService as any).supabase = mockSupabase;
+    jest.clearAllMocks();
   });
 
   describe('getPlayer', () => {
@@ -124,6 +141,7 @@ describe('DatabaseService', () => {
         { wallet_address: '0x456', rating: 1100 }
       ];
 
+      const mockSupabase = createClient('', '') as unknown as MockSupabaseClient;
       mockSupabase.limit.mockResolvedValue({
         data: mockPlayers,
         error: null
@@ -135,7 +153,7 @@ describe('DatabaseService', () => {
         rating: p.rating
       })));
       expect(mockSupabase.from).toHaveBeenCalledWith('players');
-      expect(mockSupabase.select).toHaveBeenCalledWith('wallet_address, rating');
+      expect(mockSupabase.select).toHaveBeenCalledWith('wallet_address, username, rating, created_at, wins, games_played, total_score, badges, achievements');
       expect(mockSupabase.order).toHaveBeenCalledWith('rating', { ascending: false });
       expect(mockSupabase.limit).toHaveBeenCalledWith(10);
     });

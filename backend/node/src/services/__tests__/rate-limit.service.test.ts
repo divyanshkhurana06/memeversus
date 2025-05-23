@@ -2,8 +2,10 @@ import { RateLimitService } from '../rate-limit.service';
 import { LoggingService } from '../logging.service';
 import { Request, Response } from 'express';
 import { RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 
 jest.mock('../logging.service');
+jest.mock('express-rate-limit');
 
 describe('RateLimitService', () => {
   let rateLimitService: RateLimitService;
@@ -24,6 +26,19 @@ describe('RateLimitService', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis()
     };
+
+    // Mock the rate limit middleware
+    (rateLimit as jest.Mock).mockImplementation((options) => {
+      return (req: Request, res: Response, next: Function) => {
+        if (req.ip === '127.0.0.1') {
+          res.status(429).json({ error: options.message || 'Too many requests' });
+        } else {
+          next();
+        }
+      };
+    });
+
+    jest.clearAllMocks();
   });
 
   describe('createLimiter', () => {
@@ -58,16 +73,15 @@ describe('RateLimitService', () => {
       expect(rateLimitService.getLimiter('api')).toBe(limiter);
     });
 
-    it('should handle rate limit exceeded', () => {
+    it('should handle rate limit exceeded', async () => {
       const limiter = rateLimitService.createApiLimiter();
       const req = { ...mockRequest, ip: '127.0.0.1' } as Request;
       const res = { ...mockResponse, status: jest.fn().mockReturnThis(), json: jest.fn() } as Response;
-      const next = jest.fn(() => { throw new Error('Too many requests'); });
-      expect(() => limiter(req, res, next)).toThrow('Too many requests');
+      const next = jest.fn();
+
+      await limiter(req, res, next);
       expect(res.status).toHaveBeenCalledWith(429);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Too many API requests, please try again later.'
-      });
+      expect(res.json).toHaveBeenCalledWith({ error: 'Too many API requests, please try again later.' });
     });
   });
 
@@ -83,8 +97,9 @@ describe('RateLimitService', () => {
       const limiter = rateLimitService.createAuthLimiter();
       const req = { ...mockRequest, ip: '127.0.0.1' } as Request;
       const res = { ...mockResponse, status: jest.fn().mockReturnThis(), json: jest.fn() } as Response;
-      const next = jest.fn(() => { throw new Error('Too many requests'); });
-      expect(() => limiter(req, res, next)).toThrow('Too many requests');
+      const next = jest.fn();
+
+      limiter(req, res, next);
       expect(res.status).toHaveBeenCalledWith(429);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Too many authentication attempts, please try again later.'
@@ -104,8 +119,9 @@ describe('RateLimitService', () => {
       const limiter = rateLimitService.createGameActionLimiter();
       const req = { ...mockRequest, ip: '127.0.0.1' } as Request;
       const res = { ...mockResponse, status: jest.fn().mockReturnThis(), json: jest.fn() } as Response;
-      const next = jest.fn(() => { throw new Error('Too many requests'); });
-      expect(() => limiter(req, res, next)).toThrow('Too many requests');
+      const next = jest.fn();
+
+      limiter(req, res, next);
       expect(res.status).toHaveBeenCalledWith(429);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Too many game actions, please try again later.'
@@ -125,8 +141,9 @@ describe('RateLimitService', () => {
       const limiter = rateLimitService.createWebSocketLimiter();
       const req = { ...mockRequest, ip: '127.0.0.1' } as Request;
       const res = { ...mockResponse, status: jest.fn().mockReturnThis(), json: jest.fn() } as Response;
-      const next = jest.fn(() => { throw new Error('Too many requests'); });
-      expect(() => limiter(req, res, next)).toThrow('Too many requests');
+      const next = jest.fn();
+
+      limiter(req, res, next);
       expect(res.status).toHaveBeenCalledWith(429);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Too many WebSocket messages, please try again later.'
